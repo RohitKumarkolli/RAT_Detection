@@ -1,4 +1,4 @@
-RAT DETECTION
+## RAT DETECTION
 
 A Machine Learning based Android Malware Detection System that predicts whether an APK is Benign or Malicious using multiple classification algorithms.
 
