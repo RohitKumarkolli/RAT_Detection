@@ -1,0 +1,3 @@
+Requirement already satisfied: xgboost in c:\users\rohit\anaconda3\envs\test\lib\site-packages (3.2.0)
+Requirement already satisfied: numpy in c:\users\rohit\anaconda3\envs\test\lib\site-packages (from xgboost) (1.26.4)
+Requirement already satisfied: scipy in c:\users\rohit\anaconda3\envs\test\lib\site-packages (from xgboost) (1.15.1)

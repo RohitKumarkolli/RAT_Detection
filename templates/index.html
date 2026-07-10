@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>APK Malware Detector</title>
+  <style>
+    :root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--accent:#58a6ff;
+          --danger:#f85149;--safe:#3fb950;--text:#e6edf3;--muted:#8b949e;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;}
+    nav{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;
+        display:flex;align-items:center;gap:20px;}
+    nav .logo{font-size:1.05rem;font-weight:700;color:var(--accent);}
+    nav a{color:var(--muted);text-decoration:none;font-size:.88rem;}
+    nav a:hover,nav a.active{color:var(--text);}
+    nav a.active{border-bottom:2px solid var(--accent);padding-bottom:2px;}
+    .badge{background:rgba(88,166,255,.15);color:var(--accent);padding:3px 10px;
+           border-radius:20px;font-size:.75rem;font-weight:600;margin-left:auto;}
+    .container{max-width:860px;margin:48px auto;padding:0 24px;}
+    h1{font-size:2rem;font-weight:800;margin-bottom:8px;}
+    .subtitle{color:var(--muted);margin-bottom:36px;font-size:.95rem;}
+    .upload-card{background:var(--surface);border:2px dashed var(--border);
+                 border-radius:14px;padding:48px 36px;text-align:center;
+                 transition:border-color .2s;}
+    .upload-card.drag-over{border-color:var(--accent);}
+    .upload-icon{font-size:3rem;margin-bottom:16px;}
+    .upload-card h2{font-size:1.2rem;margin-bottom:8px;}
+    .upload-card p{color:var(--muted);font-size:.88rem;margin-bottom:24px;}
+    .file-input-wrap{display:inline-block;position:relative;}
+    .file-btn{background:var(--accent);color:#000;border:none;padding:11px 28px;
+              border-radius:8px;font-weight:700;font-size:.95rem;cursor:pointer;}
+    #apk-file-input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+    .selected-file{margin-top:16px;padding:10px 16px;background:rgba(88,166,255,.08);
+                   border:1px solid rgba(88,166,255,.25);border-radius:8px;
+                   font-size:.85rem;display:none;align-items:center;gap:10px;}
+    .analyze-btn{width:100%;margin-top:20px;background:var(--accent);color:#000;
+                 border:none;padding:13px;border-radius:8px;font-weight:700;
+                 font-size:1rem;cursor:pointer;display:none;transition:opacity .2s;}
+    .analyze-btn:disabled{opacity:.4;cursor:not-allowed;}
+    .progress-wrap{display:none;margin-top:20px;}
+    .steps{display:flex;justify-content:space-between;margin-bottom:12px;}
+    .step{font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:6px;}
+    .step.active{color:var(--accent);font-weight:600;}
+    .step.done{color:var(--safe);}
+    .prog-bar{background:var(--border);border-radius:4px;height:4px;overflow:hidden;}
+    .prog-fill{height:100%;background:var(--accent);border-radius:4px;
+               transition:width .4s ease;width:0%;}
+    .error-box{display:none;margin-top:16px;background:rgba(248,81,73,.08);
+               border:1px solid var(--danger);border-radius:8px;
+               padding:12px 16px;color:var(--danger);font-size:.88rem;}
+    .models-strip{margin-top:36px;display:flex;gap:10px;flex-wrap:wrap;}
+    .model-badge{background:var(--surface);border:1px solid var(--border);
+                 border-radius:8px;padding:8px 14px;font-size:.8rem;color:var(--muted);}
+    .model-badge span{color:var(--safe);font-weight:700;}
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">&#x1F6E1;&#xFE0F; APK Malware Detector</div>
+  <a href="/" class="active">Upload APK</a>
+  <a href="/test">Manual Tester</a>
+  <a href="/models">Models</a>
+  <span class="badge">{{ models_loaded }} model{% if models_loaded != 1 %}s{% endif %} loaded</span>
+</nav>
+
+<div class="container">
+  <h1>Android APK Malware Detector</h1>
+  <p class="subtitle">Upload an .apk file to analyse it with {{ models_loaded }} trained machine learning model{% if models_loaded != 1 %}s{% endif %}.</p>
+
+  <div class="upload-card" id="drop-zone">
+    <div class="upload-icon">&#x1F4E6;</div>
+    <h2>Drop your APK here</h2>
+    <p>or click to browse &nbsp;&bull;&nbsp; Max {{ 100 }} MB</p>
+    <div class="file-input-wrap">
+      <button class="file-btn">&#x1F4C2; Browse APK</button>
+      <input type="file" id="apk-file-input" accept=".apk"/>
+    </div>
+    <div class="selected-file" id="selected-file">
+      <span>&#x1F4CB;</span><span id="fname"></span>
+      <span style="color:var(--muted)" id="fsize"></span>
+    </div>
+    <button class="analyze-btn" id="analyze-btn" onclick="analyzeApk()">
+      &#x1F50D; Analyze APK
+    </button>
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="steps">
+        <div class="step" id="s1">&#x1F4E4; Upload</div>
+        <div class="step" id="s2">&#x1F527; Extract features</div>
+        <div class="step" id="s3">&#x1F9E0; Run models</div>
+        <div class="step" id="s4">&#x1F3C1; Verdict</div>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+    </div>
+    <div class="error-box" id="error-box"></div>
+  </div>
+
+  <div class="models-strip">
+    {% for name in model_names %}
+    <div class="model-badge"><span>&#x2714;</span> {{ name }}</div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+let selectedFile = null;
+const input     = document.getElementById("apk-file-input");
+const dropZone  = document.getElementById("drop-zone");
+const selDiv    = document.getElementById("selected-file");
+const analyzeBtn= document.getElementById("analyze-btn");
+
+input.addEventListener("change", e => handleFile(e.target.files[0]));
+dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+dropZone.addEventListener("dragleave", ()=> dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault(); dropZone.classList.remove("drag-over");
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".apk")) {
+    showError("Only .apk files are accepted."); return;
+  }
+  selectedFile = file;
+  document.getElementById("fname").textContent = file.name;
+  document.getElementById("fsize").textContent = `(${(file.size/1024/1024).toFixed(1)} MB)`;
+  selDiv.style.display = "flex";
+  analyzeBtn.style.display = "block";
+  document.getElementById("error-box").style.display = "none";
+}
+
+function setStep(n) {
+  const prog = [0,25,55,80,100];
+  document.getElementById("prog-fill").style.width = prog[n] + "%";
+  for (let i=1;i<=4;i++) {
+    const el = document.getElementById("s"+i);
+    el.className = "step" + (i<n?" done":i===n?" active":"");
+  }
+}
+
+function showError(msg) {
+  const eb = document.getElementById("error-box");
+  eb.textContent = "⚠ " + msg;
+  eb.style.display = "block";
+}
+
+async function analyzeApk() {
+  if (!selectedFile) return;
+  analyzeBtn.disabled = true;
+  document.getElementById("progress-wrap").style.display = "block";
+  document.getElementById("error-box").style.display    = "none";
+  setStep(1);
+
+  const fd = new FormData();
+  fd.append("apk_file", selectedFile);
+
+  try {
+    setStep(2);
+    const resp = await fetch("/analyze", { method:"POST", body:fd });
+    setStep(3);
+    const data = await resp.json();
+    if (!resp.ok || data.error) { showError(data.error || "Server error"); analyzeBtn.disabled=false; return; }
+    setStep(4);
+    setTimeout(() => { window.location.href = "/result/" + data.job_id; }, 400);
+  } catch(e) {
+    showError("Network error: " + e.message);
+    analyzeBtn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Models – APK Malware Detector</title>
+  <style>
+    :root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--accent:#58a6ff;
+          --safe:#3fb950;--warn:#d29922;--danger:#f85149;--text:#e6edf3;--muted:#8b949e;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+    nav{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;
+        display:flex;align-items:center;gap:20px;}
+    nav .logo{font-size:1.05rem;font-weight:700;color:var(--accent);}
+    nav a{color:var(--muted);text-decoration:none;font-size:.88rem;}
+    nav a:hover,nav a.active{color:var(--text);}
+    nav a.active{border-bottom:2px solid var(--accent);padding-bottom:2px;}
+    .badge{background:rgba(88,166,255,.15);color:var(--accent);padding:3px 10px;
+           border-radius:20px;font-size:.75rem;font-weight:600;margin-left:auto;}
+    .container{max-width:960px;margin:40px auto;padding:0 24px;}
+    h1{font-size:1.7rem;font-weight:800;margin-bottom:6px;}
+    .subtitle{color:var(--muted);font-size:.9rem;margin-bottom:32px;}
+
+    .model-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+    .model-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;}
+    .mc-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+    .mc-icon{font-size:1.8rem;}
+    .mc-title{font-size:1rem;font-weight:700;}
+    .mc-type{font-size:.75rem;color:var(--muted);}
+    .mc-status{margin-left:auto;padding:3px 10px;border-radius:20px;font-size:.73rem;font-weight:600;}
+    .status-ok  {background:rgba(63,185,80,.15);color:var(--safe);}
+    .status-warn{background:rgba(210,153,34,.15);color:var(--warn);}
+
+    .param-row{display:flex;justify-content:space-between;font-size:.82rem;
+               padding:5px 0;border-bottom:1px solid var(--border);}
+    .param-row:last-child{border:none;}
+    .param-key{color:var(--muted);}
+    .param-val{font-family:monospace;font-weight:600;color:var(--accent);}
+
+    .classes-row{margin-top:12px;display:flex;gap:6px;}
+    .class-chip{padding:2px 10px;border-radius:20px;font-size:.73rem;font-weight:600;}
+    .class-malware {background:rgba(248,81,73,.18);color:var(--danger);}
+    .class-goodware{background:rgba(63,185,80,.15);color:var(--safe);}
+
+    .summary-card{background:var(--surface);border:1px solid var(--border);
+                  border-radius:12px;padding:20px 22px;margin-bottom:24px;}
+    .summary-card h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;
+                     color:var(--muted);margin-bottom:14px;}
+    .stat-row{display:flex;justify-content:space-between;font-size:.88rem;
+              padding:5px 0;border-bottom:1px solid var(--border);}
+    .stat-row:last-child{border:none;}
+    .stat-val{font-weight:600;}
+
+    .no-models{text-align:center;padding:60px 20px;color:var(--muted);}
+    .no-models .icon{font-size:3rem;margin-bottom:12px;}
+    .no-models code{background:var(--surface);border:1px solid var(--border);
+                    padding:8px 16px;border-radius:6px;font-size:.85rem;
+                    display:block;margin:8px auto;max-width:400px;text-align:left;}
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">&#x1F6E1;&#xFE0F; APK Malware Detector</div>
+  <a href="/">Upload APK</a>
+  <a href="/test">Manual Tester</a>
+  <a href="/models" class="active">Models</a>
+  <span class="badge">{{ feature_count }} features</span>
+</nav>
+
+<div class="container">
+  <h1>&#x1F9E0; Loaded Models</h1>
+  <p class="subtitle">All models trained on TUANDROMD dataset &nbsp;&bull;&nbsp; {{ feature_count }} binary features &nbsp;&bull;&nbsp; Imbalance handled via class weights (no SMOTE)</p>
+
+  {% if models_info %}
+
+  <!-- Summary row -->
+  <div class="summary-card">
+    <h3>&#x1F4CA; Summary</h3>
+    <div class="stat-row"><span>Models loaded</span><span class="stat-val">{{ models_info | length }}</span></div>
+    <div class="stat-row"><span>Feature count (raw)</span><span class="stat-val">{{ feature_count }}</span></div>
+    <div class="stat-row"><span>Preprocessing</span><span class="stat-val">VarianceThreshold(0.0)  +  class_weight / scale_pos_weight</span></div>
+    <div class="stat-row"><span>Ensemble strategy</span><span class="stat-val">Majority vote across all loaded models</span></div>
+  </div>
+
+  <!-- Model cards -->
+  <div class="model-grid">
+    {% for name, info in models_info.items() %}
+    <div class="model-card">
+      <div class="mc-head">
+        <div class="mc-icon">
+          {% if 'Forest' in name %}&#x1F332;
+          {% elif 'Tree' in name %}&#x1F33F;
+          {% elif 'XGB' in name or 'Xgb' in name %}&#x26A1;
+          {% elif 'Ada' in name %}&#x1F4C8;
+          {% elif 'Stack' in name %}&#x1F9F1;
+          {% else %}&#x1F9E0;{% endif %}
+        </div>
+        <div>
+          <div class="mc-title">{{ name }}</div>
+          <div class="mc-type">{{ info.type }}</div>
+        </div>
+        <span class="mc-status status-ok">&#x2714; Loaded</span>
+      </div>
+
+      {% if info.params %}
+        {% for k, v in info.params.items() %}
+        <div class="param-row">
+          <span class="param-key">{{ k }}</span>
+          <span class="param-val">{{ v }}</span>
+        </div>
+        {% endfor %}
+      {% endif %}
+
+      {% if info.oob_score is defined %}
+      <div class="param-row">
+        <span class="param-key">oob_score</span>
+        <span class="param-val" style="color:var(--safe)">{{ info.oob_score }}</span>
+      </div>
+      {% endif %}
+
+      <div class="classes-row">
+        {% for c in info.classes %}
+        <span class="class-chip {% if c == 'malware' %}class-malware{% else %}class-goodware{% endif %}">{{ c }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+
+  <div class="no-models">
+    <div class="icon">&#x26A0;&#xFE0F;</div>
+    <p>No models loaded. Run the training scripts first:</p>
+    <code>python train_random_forest.py</code>
+    <code>python train_decision_tree.py</code>
+    <code>python train_xgboost.py</code>
+    <code>python train_adaboost.py</code>
+    <code>python train_stacking.py</code>
+    <p style="margin-top:14px;font-size:.85rem;">Then copy outputs into <code style="display:inline;padding:2px 6px">malware_app/models/</code></p>
+  </div>
+
+  {% endif %}
+</div>
+</body>
+</html>

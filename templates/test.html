@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Manual Tester – APK Malware Detector</title>
+  <style>
+    :root{--bg:#0d1117;--surface:#161b22;--surface2:#1c2128;--border:#30363d;
+          --accent:#58a6ff;--danger:#f85149;--safe:#3fb950;--warn:#d29922;
+          --text:#e6edf3;--muted:#8b949e;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;}
+    nav{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;
+        display:flex;align-items:center;gap:20px;position:sticky;top:0;z-index:100;}
+    nav .logo{font-size:1.05rem;font-weight:700;color:var(--accent);}
+    nav a{color:var(--muted);text-decoration:none;font-size:.88rem;}
+    nav a:hover,nav a.active{color:var(--text);}
+    nav a.active{border-bottom:2px solid var(--accent);padding-bottom:2px;}
+    .badge{background:rgba(88,166,255,.15);color:var(--accent);padding:3px 10px;
+           border-radius:20px;font-size:.75rem;font-weight:600;margin-left:auto;}
+
+    /* ── 3-column layout: sidebar | main | weights panel ── */
+    .layout{display:grid;grid-template-columns:280px 1fr 320px;min-height:calc(100vh - 52px);}
+
+    /* Sidebar */
+    .sidebar{background:var(--surface);border-right:1px solid var(--border);
+             overflow-y:auto;height:calc(100vh - 52px);position:sticky;top:52px;}
+    .sb-head{padding:14px 16px 10px;border-bottom:1px solid var(--border);
+             position:sticky;top:0;background:var(--surface);z-index:10;}
+    .sb-head h2{font-size:.9rem;font-weight:700;margin-bottom:10px;}
+    .search-wrap{position:relative;margin-bottom:8px;}
+    .search-wrap input{width:100%;background:var(--surface2);border:1px solid var(--border);
+                       border-radius:6px;padding:6px 8px 6px 28px;color:var(--text);font-size:.82rem;outline:none;}
+    .search-wrap input:focus{border-color:var(--accent);}
+    .search-wrap .si{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.8rem;}
+    .qbtns{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;}
+    .qb{font-size:.72rem;padding:3px 8px;border-radius:4px;border:none;cursor:pointer;font-weight:600;}
+    .qb-all{background:rgba(88,166,255,.15);color:var(--accent);}
+    .qb-none{background:rgba(139,148,158,.12);color:var(--muted);}
+    .qb-danger{background:rgba(248,81,73,.15);color:var(--danger);}
+    .qb-api{background:rgba(210,153,34,.15);color:var(--warn);}
+    .counter{font-size:.77rem;color:var(--muted);margin-top:4px;}
+    .counter span{color:var(--accent);font-weight:700;}
+
+    .groups{padding:4px 0 60px;}
+    .grp{border-bottom:1px solid var(--border);}
+    .grp-hd{padding:9px 16px;display:flex;align-items:center;justify-content:space-between;
+            cursor:pointer;user-select:none;}
+    .grp-hd:hover{background:rgba(255,255,255,.03);}
+    .grp-title{font-size:.82rem;font-weight:700;display:flex;align-items:center;gap:6px;}
+    .grp-count{font-size:.72rem;color:var(--muted);}
+    .grp-arr{color:var(--muted);font-size:.68rem;transition:transform .2s;}
+    .grp-hd.open .grp-arr{transform:rotate(90deg);}
+    .grp-body{display:none;padding:4px 10px 8px;}
+    .grp-body.open{display:block;}
+
+    .feat-row{display:flex;align-items:center;gap:8px;padding:4px 6px;
+              border-radius:6px;cursor:pointer;transition:background .12s;}
+    .feat-row:hover{background:rgba(255,255,255,.04);}
+    .feat-row.hidden{display:none;}
+    .toggle{position:relative;width:32px;height:17px;flex-shrink:0;}
+    .toggle input{opacity:0;width:0;height:0;}
+    .slider{position:absolute;inset:0;border-radius:17px;background:#30363d;cursor:pointer;transition:background .2s;}
+    .slider::before{content:"";position:absolute;width:11px;height:11px;
+                    border-radius:50%;background:#fff;left:3px;top:3px;transition:transform .2s;}
+    .toggle input:checked + .slider{background:#238636;}
+    .toggle input:checked + .slider::before{transform:translateX(15px);}
+    .feat-lbl{font-size:.76rem;font-family:monospace;color:var(--muted);flex:1;word-break:break-all;line-height:1.3;}
+    .feat-row.active .feat-lbl{color:var(--text);}
+    .ftag{font-size:.63rem;padding:1px 5px;border-radius:8px;flex-shrink:0;}
+    .ftag-d{background:rgba(248,81,73,.15);color:var(--danger);}
+    .ftag-a{background:rgba(210,153,34,.18);color:var(--warn);}
+
+    /* Main */
+    .main{padding:22px 26px;overflow-y:auto;}
+    .main-hd{display:flex;align-items:flex-start;gap:14px;margin-bottom:18px;flex-wrap:wrap;}
+    .main-hd h1{font-size:1.25rem;font-weight:800;}
+    .main-hd p{color:var(--muted);font-size:.83rem;margin-top:3px;}
+    .run-btn{margin-left:auto;background:var(--accent);color:#000;border:none;
+             padding:10px 24px;border-radius:8px;font-weight:700;font-size:.92rem;
+             cursor:pointer;display:flex;align-items:center;gap:7px;transition:opacity .2s;}
+    .run-btn:hover:not(:disabled){opacity:.85;}
+    .run-btn:disabled{opacity:.4;cursor:not-allowed;}
+    .spin{display:none;width:13px;height:13px;border:2px solid rgba(0,0,0,.3);
+          border-top-color:#000;border-radius:50%;animation:spin .6s linear infinite;}
+    .run-btn.loading .spin{display:block;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    /* Presets */
+    .section-title{font-size:.72rem;font-weight:700;color:var(--muted);
+                   text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
+    .preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+    .preset-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+                 padding:10px 12px;cursor:pointer;transition:border-color .2s;flex:1;min-width:120px;}
+    .preset-card:hover{border-color:var(--accent);}
+    .pc-icon{font-size:1.3rem;margin-bottom:4px;}
+    .pc-name{font-size:.82rem;font-weight:700;}
+    .pc-desc{font-size:.72rem;color:var(--muted);margin-top:2px;}
+    .pc-cnt{font-size:.7rem;color:var(--accent);margin-top:3px;font-weight:600;}
+
+    /* Active chips */
+    .chip-strip{display:flex;flex-wrap:wrap;gap:5px;padding:10px 12px;
+                background:var(--surface);border:1px solid var(--border);
+                border-radius:10px;min-height:42px;align-items:center;margin-bottom:18px;}
+    .strip-lbl{font-size:.76rem;color:var(--muted);margin-right:3px;}
+    .chip{background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.22);
+          color:var(--accent);padding:2px 8px;border-radius:5px;
+          font-size:.7rem;font-family:monospace;cursor:pointer;}
+    .chip:hover{background:rgba(248,81,73,.12);border-color:var(--danger);color:var(--danger);}
+    .chip-api{background:rgba(210,153,34,.08);border-color:rgba(210,153,34,.28);color:var(--warn);}
+    .no-feat{font-size:.8rem;color:var(--muted);font-style:italic;}
+
+    /* Error */
+    .err-box{display:none;background:rgba(248,81,73,.08);border:1px solid var(--danger);
+             border-radius:8px;padding:11px 15px;color:var(--danger);font-size:.86rem;margin-bottom:14px;}
+
+    /* Results */
+    .verdict-card{border-radius:12px;padding:18px 22px;display:flex;align-items:center;
+                  gap:18px;margin-bottom:14px;}
+    .vc-mal {background:rgba(248,81,73,.1); border:1px solid rgba(248,81,73,.35);}
+    .vc-good{background:rgba(63,185,80,.1); border:1px solid rgba(63,185,80,.35);}
+    .vc-idle{background:var(--surface);      border:1px solid var(--border);}
+    .vi{font-size:2.5rem;}
+    .vt-label{font-size:1.3rem;font-weight:800;}
+    .vm{color:var(--muted);font-size:.82rem;margin-top:4px;}
+    .rpill{display:inline-block;padding:2px 12px;border-radius:20px;font-size:.78rem;font-weight:600;margin-top:4px;}
+    .rp-Critical{background:rgba(248,81,73,.25);color:#f85149;}
+    .rp-High    {background:rgba(255,110,87,.2); color:#ff6e57;}
+    .rp-Medium  {background:rgba(210,153,34,.2); color:#d29922;}
+    .rp-Low     {background:rgba(88,166,255,.15);color:#58a6ff;}
+    .rp-Safe    {background:rgba(63,185,80,.15); color:#3fb950;}
+    .rp-Unknown {background:rgba(139,148,158,.12);color:var(--muted);}
+    .sco-circ{margin-left:auto;width:85px;height:85px;border-radius:50%;
+              border:5px solid var(--border);display:flex;flex-direction:column;
+              align-items:center;justify-content:center;flex-shrink:0;}
+    .sco-num{font-size:1.6rem;font-weight:900;}
+    .sco-lbl{font-size:.6rem;color:var(--muted);}
+    .sc-h{border-color:var(--danger);}
+    .sc-m{border-color:var(--warn);}
+    .sc-l{border-color:var(--safe);}
+    .model-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+                gap:10px;margin-bottom:12px;}
+    .mc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 15px;}
+    .mc-hd{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+    .mc-nm{font-size:.86rem;font-weight:700;}
+    .mc-pd{padding:2px 8px;border-radius:20px;font-size:.73rem;font-weight:600;}
+    .pd-m{background:rgba(248,81,73,.18);color:var(--danger);}
+    .pd-g{background:rgba(63,185,80,.15);color:var(--safe);}
+    .mc-bw{background:var(--border);border-radius:4px;height:6px;margin-bottom:5px;overflow:hidden;}
+    .mc-b{height:100%;border-radius:4px;}
+    .bh{background:var(--danger);} .bm{background:var(--warn);} .bl{background:var(--safe);}
+    .mc-p{display:flex;justify-content:space-between;font-size:.73rem;color:var(--muted);}
+    .empty-state{text-align:center;padding:44px 20px;background:var(--surface);
+                 border:1px dashed var(--border);border-radius:12px;color:var(--muted);}
+    .empty-state .ei{font-size:2.3rem;margin-bottom:8px;}
+
+    /* ── Feature Weights Panel (right column) ── */
+    .weights-panel{background:var(--surface);border-left:1px solid var(--border);
+                   height:calc(100vh - 52px);position:sticky;top:52px;
+                   overflow-y:auto;display:flex;flex-direction:column;}
+    .wp-head{padding:14px 16px 12px;border-bottom:1px solid var(--border);
+             position:sticky;top:0;background:var(--surface);z-index:10;}
+    .wp-head h2{font-size:.9rem;font-weight:700;margin-bottom:10px;}
+
+    /* Model tabs */
+    .model-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;}
+    .mtab{font-size:.72rem;padding:4px 10px;border-radius:6px;border:1px solid var(--border);
+          cursor:pointer;color:var(--muted);background:transparent;transition:all .15s;}
+    .mtab:hover{border-color:var(--accent);color:var(--text);}
+    .mtab.active{background:rgba(88,166,255,.15);border-color:var(--accent);color:var(--accent);font-weight:700;}
+
+    /* Sort + filter */
+    .wp-controls{display:flex;gap:6px;align-items:center;}
+    .wp-sort{font-size:.72rem;background:var(--surface2);border:1px solid var(--border);
+             color:var(--text);border-radius:5px;padding:4px 7px;cursor:pointer;outline:none;}
+    .wp-filter{display:flex;gap:4px;}
+    .wf-btn{font-size:.68rem;padding:3px 7px;border-radius:4px;border:1px solid var(--border);
+            cursor:pointer;color:var(--muted);background:transparent;transition:all .15s;}
+    .wf-btn:hover,.wf-btn.on{border-color:var(--accent);color:var(--accent);background:rgba(88,166,255,.1);}
+
+    /* Weight rows */
+    .wp-body{padding:8px 14px 60px;flex:1;}
+    .wp-empty{text-align:center;padding:30px 10px;color:var(--muted);font-size:.82rem;font-style:italic;}
+
+    .w-row{padding:6px 0;border-bottom:1px solid rgba(48,54,61,.6);}
+    .w-row:last-child{border:none;}
+    .w-row.w-active{background:rgba(88,166,255,.04);border-radius:6px;padding:6px 6px;
+                    border-bottom:1px solid rgba(88,166,255,.1);}
+    .w-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+    .w-name{font-size:.72rem;font-family:monospace;color:var(--muted);
+            word-break:break-all;line-height:1.3;flex:1;padding-right:8px;}
+    .w-row.w-active .w-name{color:var(--text);}
+    .w-val{font-size:.72rem;font-weight:700;color:var(--accent);white-space:nowrap;font-family:monospace;}
+    .w-pct{font-size:.65rem;color:var(--muted);margin-left:4px;}
+    .w-bar-wrap{height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+    .w-bar{height:100%;border-radius:2px;transition:width .3s ease;}
+
+    /* Active-feature highlight dot */
+    .w-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+            flex-shrink:0;margin-right:4px;display:none;}
+    .w-row.w-active .w-dot{display:block;}
+
+    /* Summary box inside weights panel */
+    .w-summary{margin:10px 14px 0;padding:10px 12px;background:var(--surface2);
+               border:1px solid var(--border);border-radius:8px;font-size:.76rem;}
+    .w-summary-title{font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;
+                     color:var(--muted);margin-bottom:7px;font-weight:700;}
+    .w-sum-row{display:flex;justify-content:space-between;padding:3px 0;
+               border-bottom:1px solid var(--border);}
+    .w-sum-row:last-child{border:none;}
+    .w-sum-val{font-weight:700;color:var(--accent);}
+    .w-sum-val.danger{color:var(--danger);}
+
+    @media(max-width:1100px){
+      .layout{grid-template-columns:260px 1fr;}
+      .weights-panel{display:none;}
+    }
+    @media(max-width:800px){
+      .layout{grid-template-columns:1fr;}
+      .sidebar{height:auto;max-height:40vh;position:static;}
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="logo">&#x1F6E1;&#xFE0F; APK Malware Detector</div>
+  <a href="/">Upload APK</a>
+  <a href="/test" class="active">Manual Tester</a>
+  <a href="/models">Models</a>
+  <span class="badge">{{ total_features }} features &nbsp;&bull;&nbsp; {{ models_loaded }} model{% if models_loaded != 1 %}s{% endif %}</span>
+</nav>
+
+<div class="layout">
+  <!-- ── SIDEBAR: feature toggles ── -->
+  <aside class="sidebar">
+    <div class="sb-head">
+      <h2>&#x1F527; Feature Controls</h2>
+      <div class="search-wrap">
+        <span class="si">&#x1F50D;</span>
+        <input type="text" id="feat-search" placeholder="Search features…" oninput="filterFeats(this.value)"/>
+      </div>
+      <div class="qbtns">
+        <button class="qb qb-all"    onclick="selectAll(true)">&#x2714; All ON</button>
+        <button class="qb qb-none"   onclick="selectAll(false)">&#x2716; All OFF</button>
+        <button class="qb qb-danger" onclick="selectDangerous()">&#x26A0; Dangerous</button>
+        <button class="qb qb-api"    onclick="selectAPIs()">&#x26A1; APIs</button>
+      </div>
+      <div class="counter">Active: <span id="active-cnt">0</span> / {{ total_features }}</div>
+    </div>
+    <div class="groups" id="feat-groups">
+      {% for grp_name, feats in feature_groups.items() %}
+      <div class="grp">
+        <div class="grp-hd" onclick="toggleGrp(this)">
+          <span class="grp-title">
+            {% if "Dangerous Perm" in grp_name %}&#x26A0;&#xFE0F;
+            {% elif "API" in grp_name %}&#x26A1;
+            {% elif "Network" in grp_name %}&#x1F4F6;
+            {% elif "Storage" in grp_name %}&#x1F4BE;
+            {% elif "System" in grp_name %}&#x2699;&#xFE0F;
+            {% elif "Account" in grp_name %}&#x1F464;
+            {% elif "Media" in grp_name %}&#x1F3A4;
+            {% else %}&#x1F4CB;{% endif %}
+            {{ grp_name }}
+          </span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="grp-count">{{ feats|length }}</span>
+            <span class="grp-arr">&#x25B6;</span>
+          </div>
+        </div>
+        <div class="grp-body">
+          {% for feat in feats %}
+          {% set is_d = feat in dangerous_perms %}
+          {% set is_a = feat.startswith("L") %}
+          <div class="feat-row" data-feat="{{ feat }}" onclick="toggleFeat('{{ feat }}',this)">
+            <label class="toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" data-feat="{{ feat }}" onchange="onChkChange('{{ feat }}',this)"/>
+              <span class="slider"></span>
+            </label>
+            <span class="feat-lbl">
+              {% if is_a %}{{ feat.split(";->")[1] if ";->" in feat else feat }}<br>
+              <span style="font-size:.67rem;color:var(--muted)">{{ feat.split(";")[0] if ";" in feat else "" }}</span>
+              {% else %}{{ feat }}{% endif %}
+            </span>
+            {% if is_d %}<span class="ftag ftag-d">&#x26A0;</span>
+            {% elif is_a %}<span class="ftag ftag-a">API</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- ── MAIN: tester + results ── -->
+  <main class="main">
+    <div class="main-hd">
+      <div>
+        <h1>&#x1F9EA; Manual Feature Tester</h1>
+        <p>Toggle features on the left · weights update live on the right · click Run Prediction to classify.</p>
+      </div>
+      <button class="run-btn" id="run-btn" onclick="runPrediction()">
+        <span class="spin"></span>&#x25B6; Run Prediction
+      </button>
+    </div>
+
+    <!-- Presets -->
+    <p class="section-title">&#x1F4CB; Quick Presets</p>
+    <div class="preset-row" id="preset-row"></div>
+
+    <!-- Active chips -->
+    <div class="chip-strip" id="chip-strip">
+      <span class="strip-lbl">Active:</span>
+      <span class="no-feat" id="no-feat-msg">No features selected</span>
+    </div>
+
+    <!-- Error -->
+    <div class="err-box" id="err-box"></div>
+
+    <!-- Results -->
+    <p class="section-title">&#x1F4CA; Prediction Results</p>
+    <div class="empty-state" id="empty-state">
+      <div class="ei">&#x1F9EA;</div>
+      <p>Select features and click <strong>Run Prediction</strong> to see results.</p>
+    </div>
+
+    <div id="result-wrap" style="display:none">
+      <div class="verdict-card vc-idle" id="v-card">
+        <div class="vi" id="v-icon">&#x2753;</div>
+        <div>
+          <div class="vt-label" id="v-title">—</div>
+          <span class="rpill rp-Unknown" id="v-risk">—</span>
+          <div class="vm" id="v-meta"></div>
+        </div>
+        <div class="sco-circ sc-l" id="sco-circ">
+          <span class="sco-num" id="sco-num">—</span>
+          <span class="sco-lbl">RISK</span>
+        </div>
+      </div>
+      <div class="model-grid" id="model-grid"></div>
+      <p style="color:var(--muted);font-size:.76rem;text-align:right" id="infer-t"></p>
+    </div>
+  </main>
+
+  <!-- ── RIGHT PANEL: Feature Weights ── -->
+  <aside class="weights-panel">
+    <div class="wp-head">
+      <h2>&#x2696;&#xFE0F; Feature Weights</h2>
+
+      <!-- Model selector tabs -->
+      <div class="model-tabs" id="model-tabs">
+        <button class="mtab active" data-model="Random Forest" onclick="switchModel('Random Forest',this)">RF</button>
+        <button class="mtab" data-model="Decision Tree"  onclick="switchModel('Decision Tree',this)">DT</button>
+        <button class="mtab" data-model="AdaBoost"       onclick="switchModel('AdaBoost',this)">ADA</button>
+      </div>
+
+      <!-- Controls row -->
+      <div class="wp-controls">
+        <select class="wp-sort" id="wp-sort" onchange="renderWeights()">
+          <option value="weight">Sort: Weight ↓</option>
+          <option value="name">Sort: Name A–Z</option>
+          <option value="active">Sort: Active first</option>
+        </select>
+        <div class="wp-filter">
+          <button class="wf-btn" id="wf-nonzero" onclick="toggleFilter('nonzero')">Non-zero</button>
+          <button class="wf-btn" id="wf-active"  onclick="toggleFilter('active')">Selected</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live summary -->
+    <div class="w-summary" id="w-summary">
+      <div class="w-summary-title">&#x1F4CA; Selection Weight Summary</div>
+      <div class="w-sum-row"><span>Selected features</span><span class="w-sum-val" id="ws-count">0</span></div>
+      <div class="w-sum-row"><span>Combined weight (RF)</span><span class="w-sum-val" id="ws-rf">0.0000</span></div>
+      <div class="w-sum-row"><span>Combined weight (DT)</span><span class="w-sum-val" id="ws-dt">0.0000</span></div>
+      <div class="w-sum-row"><span>Combined weight (ADA)</span><span class="w-sum-val" id="ws-ada">0.0000</span></div>
+      <div class="w-sum-row"><span>Top active feature</span><span class="w-sum-val danger" id="ws-top">—</span></div>
+    </div>
+
+    <div class="wp-body" id="wp-body">
+      <div class="wp-empty">Select features to see weights.</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const FEATURE_LIST    = {{ feature_list | tojson }};
+const DANGEROUS_PERMS = new Set({{ dangerous_perms | tojson }});
+let activeFeatures    = new Set();
+
+// ── Embedded feature weights from pkl files ───────────────
+const FEATURE_WEIGHTS = {{ feature_weights | tojson }};
+
+const MODEL_NAMES = Object.keys(FEATURE_WEIGHTS);
+let currentModel  = MODEL_NAMES[0] || "Random Forest";
+let wpFilters     = { nonzero: false, active: false };
+
+// ── Presets ───────────────────────────────────────────────
+const PRESETS = [
+  { icon:"&#x1F4F1;", name:"Benign App",  desc:"Typical social app",
+    feats:["INTERNET","ACCESS_NETWORK_STATE","READ_CONTACTS","CAMERA",
+           "RECORD_AUDIO","VIBRATE","WAKE_LOCK","ACCESS_WIFI_STATE","READ_PHONE_STATE"] },
+  { icon:"&#x1F4AC;", name:"SMS Stealer", desc:"SMS malware profile",
+    feats:["READ_SMS","SEND_SMS","RECEIVE_SMS","RECEIVE_BOOT_COMPLETED","INTERNET",
+           "READ_CONTACTS","READ_PHONE_STATE","ACCESS_FINE_LOCATION",
+           "Landroid/telephony/SmsManager;->sendTextMessage",
+           "Landroid/telephony/TelephonyManager;->getDeviceId",
+           "Ljava/net/URL;->openConnection"] },
+  { icon:"&#x1F575;", name:"Spyware",     desc:"Full surveillance",
+    feats:["ACCESS_FINE_LOCATION","RECORD_AUDIO","CAMERA","READ_SMS","READ_CONTACTS",
+           "READ_CALL_LOG","READ_PHONE_STATE","GET_ACCOUNTS","RECEIVE_BOOT_COMPLETED",
+           "INTERNET","Landroid/media/AudioRecord;->startRecording",
+           "Landroid/telephony/TelephonyManager;->getDeviceId",
+           "Landroid/hardware/Camera;->takePicture","Ljava/net/URL;->openConnection",
+           "Ljava/lang/reflect/Method;->invoke"] },
+  { icon:"&#x1F4E6;", name:"Dropper",     desc:"APK dropper/loader",
+    feats:["INSTALL_PACKAGES","DELETE_PACKAGES","RECEIVE_BOOT_COMPLETED","INTERNET",
+           "WRITE_EXTERNAL_STORAGE","READ_EXTERNAL_STORAGE",
+           "Ldalvik/system/DexClassLoader;->loadClass","Ljava/lang/Runtime;->exec",
+           "Ljava/lang/System;->load","Ljava/lang/reflect/Method;->invoke"] },
+  { icon:"&#x26A1;",  name:"All APIs",    desc:"All 28 API calls ON",
+    feats:FEATURE_LIST.filter(f=>f.startsWith("L")) },
+];
+
+const pr = document.getElementById("preset-row");
+PRESETS.forEach(p=>{
+  const d=document.createElement("div"); d.className="preset-card";
+  d.innerHTML=`<div class="pc-icon">${p.icon}</div>
+    <div class="pc-name">${p.name}</div>
+    <div class="pc-desc">${p.desc}</div>
+    <div class="pc-cnt">${p.feats.length} features</div>`;
+  d.onclick=()=>applyPreset(p);
+  pr.appendChild(d);
+});
+
+// ── Feature toggle logic ──────────────────────────────────
+function setFeat(feat, on) {
+  if(on) activeFeatures.add(feat); else activeFeatures.delete(feat);
+  const chk=document.querySelector(`input[data-feat="${CSS.escape(feat)}"]`);
+  if(chk) chk.checked=on;
+  const row=document.querySelector(`.feat-row[data-feat="${CSS.escape(feat)}"]`);
+  if(row) row.classList.toggle("active",on);
+  refreshUI();
+  renderWeights();
+  updateSummary();
+}
+function toggleFeat(feat){ setFeat(feat,!activeFeatures.has(feat)); }
+function onChkChange(feat,chk){ setFeat(feat,chk.checked); }
+function selectAll(on){ FEATURE_LIST.forEach(f=>setFeat(f,on)); }
+function selectDangerous(){ selectAll(false); FEATURE_LIST.forEach(f=>{ if(DANGEROUS_PERMS.has(f)) setFeat(f,true); }); }
+function selectAPIs(){ selectAll(false); FEATURE_LIST.forEach(f=>{ if(f.startsWith("L")) setFeat(f,true); }); }
+function applyPreset(p){ selectAll(false); p.feats.forEach(f=>{ if(FEATURE_LIST.includes(f)) setFeat(f,true); }); }
+
+function toggleGrp(hd){
+  const body=hd.nextElementSibling;
+  const open=body.classList.toggle("open");
+  hd.classList.toggle("open",open);
+}
+function filterFeats(q){
+  q=q.toLowerCase().trim();
+  document.querySelectorAll(".feat-row").forEach(r=>{
+    r.classList.toggle("hidden",q.length>0 && !r.dataset.feat.toLowerCase().includes(q));
+  });
+  if(q.length>0){
+    document.querySelectorAll(".grp").forEach(g=>{
+      const vis=[...g.querySelectorAll(".feat-row")].some(r=>!r.classList.contains("hidden"));
+      g.querySelector(".grp-body").classList.toggle("open",vis);
+      g.querySelector(".grp-hd").classList.toggle("open",vis);
+    });
+  }
+}
+
+function refreshUI(){
+  document.getElementById("active-cnt").textContent=activeFeatures.size;
+  const strip=document.getElementById("chip-strip");
+  const noMsg=document.getElementById("no-feat-msg");
+  strip.querySelectorAll(".chip").forEach(c=>c.remove());
+  if(activeFeatures.size===0){ noMsg.style.display="inline"; return; }
+  noMsg.style.display="none";
+  activeFeatures.forEach(feat=>{
+    const isApi=feat.startsWith("L");
+    const chip=document.createElement("span");
+    chip.className="chip"+(isApi?" chip-api":"");
+    chip.textContent=isApi?(feat.includes(";->")?feat.split(";->")[1]:feat):feat;
+    chip.title="Click to remove: "+feat;
+    chip.onclick=()=>setFeat(feat,false);
+    strip.appendChild(chip);
+  });
+}
+
+// ── Weights panel logic ───────────────────────────────────
+function switchModel(name, btn){
+  currentModel = name;
+  document.querySelectorAll(".mtab").forEach(t=>t.classList.remove("active"));
+  btn.classList.add("active");
+  renderWeights();
+}
+
+function toggleFilter(key){
+  wpFilters[key]=!wpFilters[key];
+  document.getElementById("wf-"+key).classList.toggle("on", wpFilters[key]);
+  renderWeights();
+}
+
+function renderWeights(){
+  const weights = FEATURE_WEIGHTS[currentModel];
+  if(!weights){ document.getElementById("wp-body").innerHTML='<div class="wp-empty">Model not available.</div>'; return; }
+
+  const sortMode = document.getElementById("wp-sort").value;
+  const maxW = Math.max(...Object.values(weights));
+
+  // Build list of features to show
+  let entries = FEATURE_LIST.map(f => ({
+    name: f,
+    weight: weights[f] || 0,
+    active: activeFeatures.has(f)
+  }));
+
+  // Apply filters
+  if(wpFilters.nonzero) entries = entries.filter(e => e.weight > 0);
+  if(wpFilters.active)  entries = entries.filter(e => e.active);
+
+  // Sort
+  if(sortMode === "weight")  entries.sort((a,b) => b.weight - a.weight);
+  else if(sortMode === "name") entries.sort((a,b) => a.name.localeCompare(b.name));
+  else if(sortMode === "active") entries.sort((a,b) => {
+    if(a.active !== b.active) return a.active ? -1 : 1;
+    return b.weight - a.weight;
+  });
+
+  if(entries.length === 0){
+    document.getElementById("wp-body").innerHTML='<div class="wp-empty">No features match current filters.</div>';
+    return;
+  }
+
+  const container = document.getElementById("wp-body");
+  container.innerHTML = "";
+
+  entries.forEach(({name, weight, active}) => {
+    const pct    = maxW > 0 ? (weight / maxW * 100) : 0;
+    const isApi  = name.startsWith("L");
+    const dispName = isApi ? (name.includes(";->") ? name.split(";->")[1] + "\n" + name.split(";")[0] : name) : name;
+    const barColor = weight === 0 ? "var(--border)" :
+                     pct >= 60 ? "var(--danger)" :
+                     pct >= 25 ? "var(--warn)" : "var(--safe)";
+    const valColor = weight === 0 ? "var(--muted)" :
+                     pct >= 60 ? "var(--danger)" :
+                     pct >= 25 ? "var(--warn)" : "var(--accent)";
+
+    const row = document.createElement("div");
+    row.className = "w-row" + (active ? " w-active" : "");
+
+    // Format display name
+    let nameParts = dispName.split("\n");
+    let nameHTML = `<span style="color:${active?'var(--text)':'var(--muted)'}">${nameParts[0]}</span>`;
+    if(nameParts[1]) nameHTML += `<br><span style="font-size:.64rem;color:var(--muted)">${nameParts[1]}</span>`;
+
+    row.innerHTML = `
+      <div class="w-top">
+        <div class="w-dot"></div>
+        <span class="w-name">${nameHTML}</span>
+        <span class="w-val" style="color:${valColor}">${weight.toFixed(4)}</span>
+      </div>
+      <div class="w-bar-wrap">
+        <div class="w-bar" style="width:${pct.toFixed(1)}%;background:${barColor}"></div>
+      </div>`;
+
+    // Click to toggle feature from weights panel
+    row.style.cursor = "pointer";
+    row.title = (active ? "Click to deselect: " : "Click to select: ") + name;
+    row.onclick = () => setFeat(name, !activeFeatures.has(name));
+
+    container.appendChild(row);
+  });
+}
+
+function updateSummary(){
+  const models = {
+    "Random Forest": "ws-rf",
+    "Decision Tree": "ws-dt",
+    "AdaBoost": "ws-ada"
+  };
+
+  // Combined weight per model
+  let topFeat = null, topWeight = 0;
+  Object.entries(models).forEach(([mname, elId]) => {
+    const w = FEATURE_WEIGHTS[mname] || {};
+    let total = 0;
+    activeFeatures.forEach(f => { total += (w[f] || 0); });
+    const el = document.getElementById(elId);
+    if(el) el.textContent = total.toFixed(4);
+
+    // Find top active feature for current model
+    if(mname === currentModel){
+      activeFeatures.forEach(f => {
+        if((w[f] || 0) > topWeight){ topWeight = w[f]; topFeat = f; }
+      });
+    }
+  });
+
+  document.getElementById("ws-count").textContent = activeFeatures.size;
+
+  const topEl = document.getElementById("ws-top");
+  if(topFeat){
+    const shortName = topFeat.includes(";->") ? topFeat.split(";->")[1] : topFeat;
+    topEl.textContent = shortName + " (" + topWeight.toFixed(4) + ")";
+    topEl.className = "w-sum-val danger";
+  } else {
+    topEl.textContent = "—";
+    topEl.className = "w-sum-val";
+  }
+}
+
+// ── Run prediction ────────────────────────────────────────
+async function runPrediction(){
+  const btn=document.getElementById("run-btn");
+  const err=document.getElementById("err-box");
+  err.style.display="none";
+  if(activeFeatures.size===0){
+    err.textContent="Please select at least one feature.";
+    err.style.display="block"; return;
+  }
+  btn.disabled=true; btn.classList.add("loading");
+  const payload={};
+  activeFeatures.forEach(f=>payload[f]=1);
+  try{
+    const resp=await fetch("/api/test-features",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const data=await resp.json();
+    if(!resp.ok||data.error){ err.textContent="Error: "+(data.error||"Server error"); err.style.display="block"; return; }
+    renderResults(data);
+  }catch(e){ err.textContent="Network error: "+e.message; err.style.display="block"; }
+  finally{ btn.disabled=false; btn.classList.remove("loading"); }
+}
+
+function renderResults(data){
+  const v=data.verdict;
+  document.getElementById("empty-state").style.display="none";
+  document.getElementById("result-wrap").style.display="block";
+
+  const card=document.getElementById("v-card");
+  card.className="verdict-card "+(v.verdict==="malware"?"vc-mal":"vc-good");
+  document.getElementById("v-icon").innerHTML=v.verdict==="malware"?"&#x1F6A8;":"&#x2705;";
+  const vt=document.getElementById("v-title");
+  vt.textContent=v.verdict==="malware"?"MALWARE DETECTED":"GOODWARE — CLEAN";
+  vt.style.color=v.verdict==="malware"?"var(--danger)":"var(--safe)";
+  const rp=document.getElementById("v-risk");
+  rp.textContent=v.risk_level+" Risk";
+  rp.className="rpill rp-"+v.risk_level;
+  document.getElementById("v-meta").innerHTML=
+    `${v.total_models} models &nbsp;&bull;&nbsp; ${v.mal_votes}M/${v.good_votes}G votes &nbsp;&bull;&nbsp; `+
+    `${v.confidence}% confidence &nbsp;&bull;&nbsp; ${data.features_active} features active`;
+
+  const sc=document.getElementById("sco-circ");
+  sc.className="sco-circ "+(v.score>=60?"sc-h":v.score>=30?"sc-m":"sc-l");
+  const sn=document.getElementById("sco-num");
+  sn.textContent=v.score;
+  sn.style.color=v.score>=60?"var(--danger)":v.score>=30?"var(--warn)":"var(--safe)";
+
+  const grid=document.getElementById("model-grid");
+  grid.innerHTML="";
+  Object.entries(data.model_results).forEach(([name,res])=>{
+    const d=document.createElement("div"); d.className="mc";
+    if(res.error){
+      d.innerHTML=`<div class="mc-hd"><span class="mc-nm">${name}</span></div>
+        <span style="color:var(--muted);font-size:.76rem">Error: ${res.error}</span>`;
+    }else{
+      const bc=res.malware_prob>=60?"bh":res.malware_prob>=30?"bm":"bl";
+      d.innerHTML=`<div class="mc-hd">
+        <span class="mc-nm">${name}</span>
+        <span class="mc-pd ${res.prediction==="malware"?"pd-m":"pd-g"}">${res.prediction.toUpperCase()}</span>
+      </div>
+      <div class="mc-bw"><div class="mc-b ${bc}" style="width:${res.malware_prob}%"></div></div>
+      <div class="mc-p">
+        <span>Malware: <strong style="color:var(--danger)">${res.malware_prob}%</strong></span>
+        <span>Goodware: <strong style="color:var(--safe)">${res.goodware_prob}%</strong></span>
+      </div>`;
+    }
+    grid.appendChild(d);
+  });
+  document.getElementById("infer-t").textContent="Inference: "+data.infer_ms+" ms";
+  document.getElementById("result-wrap").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+document.addEventListener("keydown",e=>{ if(e.ctrlKey&&e.key==="Enter") runPrediction(); });
+refreshUI();
+renderWeights();
+updateSummary();
+</script>
+</body>
+</html>
